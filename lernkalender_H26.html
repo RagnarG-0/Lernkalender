@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lernplan H26 · Kalender</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f1117;
+  --surface: #141820;
+  --border: #1e2a3a;
+  --text: #d8dde8;
+  --muted: #3d4f68;
+  --free-bg: #0a0d14;
+  --font-mono: 'DM Mono', monospace;
+  --font-head: 'Syne', sans-serif;
+  --cell-w: 130px;
+  --cell-h: 110px;
+}
+body { background: var(--bg); color: var(--text); font-family: var(--font-mono); overflow-x: hidden; min-width: 930px; }
+
+/* ── Header ── */
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(15,17,23,0.95); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 20px; height: 48px;
+}
+.logo { font-family: var(--font-head); font-size: 14px; font-weight: 800; color: var(--text); }
+.logo span { opacity: .35; font-weight: 700; }
+.hdr-info { font-size: 10px; color: var(--muted); margin-left: auto; }
+.hdr-info span { color: var(--text); }
+
+/* ── Day-of-week header ── */
+#cal-center {
+  max-width: 930px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+#dow-header {
+  display: grid; grid-template-columns: repeat(7, var(--cell-w));
+  gap: 3px; padding: 8px 0 4px;
+  position: sticky; top: 48px; z-index: 99;
+  background: var(--bg);
+}
+.dow-label {
+  text-align: center; font-size: 9px; color: var(--muted);
+  letter-spacing: .1em; text-transform: uppercase; padding: 4px 0;
+}
+.dow-label.weekend { color: #2a3a50; }
+
+/* ── Calendar grid ── */
+#cal-wrap { padding: 4px 0 60px; overflow-y: auto; }
+.month-block { margin-bottom: 4px; }
+.month-label {
+  font-family: var(--font-head); font-size: 11px; font-weight: 700;
+  color: var(--muted); letter-spacing: .12em; text-transform: uppercase;
+  padding: 10px 2px 4px;
+}
+.week-row {
+  display: grid; grid-template-columns: repeat(7, var(--cell-w));
+  gap: 3px; margin-bottom: 3px;
+}
+
+/* ── Cell ── */
+.cell {
+  height: var(--cell-h);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  position: relative;
+  cursor: pointer;
+  transition: border-color .15s;
+  overflow: hidden;
+  user-select: none;
+}
+.cell:hover { border-color: #2d4060; }
+.cell.empty { background: transparent; border-color: transparent; cursor: default; }
+.cell.outside { background: rgba(255,255,255,.01); }
+.cell.weekend-free { background: var(--free-bg); }
+.cell.free { background: var(--free-bg); border-color: #141c28; }
+.cell.free:hover { border-color: #1e2d40; }
+
+/* Lernday cell */
+.cell.lernday { background: var(--surface); }
+.cell.lernday.spanning { /* day spans 2 calendar days */ }
+
+/* Color strip on left */
+.cell-strip {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  border-radius: 6px 0 0 6px;
+}
+
+/* Day number top-right */
+.cell-date {
+  position: absolute; top: 7px; right: 9px;
+  font-size: 11px; color: var(--muted); font-weight: 500;
+}
+.cell.today .cell-date { color: #38bdf8; font-weight: 700; }
+
+/* Content */
+.cell-content {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: flex-start;
+  padding: 8px 10px 8px 14px;
+}
+.cell-tag { font-size: 10px; color: #5a7a9a; margin-bottom: 3px; }
+.cell-title { font-size: 11px; color: var(--text); font-weight: 500; line-height: 1.3; margin-bottom: 5px; }
+.cell-meta {
+  display: flex; gap: 8px;
+  font-size: 10px; color: #5a7a9a;
+}
+.cell-meta .modules { }
+.cell-meta .time { }
+.cell-meta .questions { }
+
+/* Free label */
+.free-label {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: #1e2d3d; letter-spacing: .08em;
+}
+
+/* Drag handle */
+.drag-handle {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 10px;
+  cursor: ew-resize; display: flex; align-items: center; justify-content: center;
+}
+.drag-handle::after {
+  content: ''; display: block;
+  width: 2px; height: 24px;
+  background: rgba(255,255,255,.08);
+  border-radius: 2px;
+}
+.cell.lernday:hover .drag-handle::after { background: rgba(255,255,255,.2); }
+
+/* Span indicator (continues to next day) */
+.span-arrow {
+  position: absolute; right: 6px; bottom: 6px;
+  font-size: 9px; color: var(--muted); opacity: .5;
+}
+
+/* Scrollbar */
+#cal-wrap::-webkit-scrollbar { width: 5px; }
+#cal-wrap::-webkit-scrollbar-track { background: var(--bg); }
+#cal-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Settings ── */
+.settings-btn {
+  position: fixed; top: 10px; right: 16px; z-index: 200;
+  background: transparent; border: 1px solid var(--border);
+  border-radius: 6px; width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--muted); font-size: 14px;
+  transition: border-color .15s, color .15s;
+}
+.settings-btn:hover { border-color: #2d4060; color: var(--text); }
+
+#settings-panel {
+  display: none;
+  position: fixed; top: 52px; right: 16px; z-index: 200;
+  background: #141820; border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px 18px;
+  width: 220px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6);
+  font-family: var(--font-mono); font-size: 11px;
+}
+#settings-panel.open { display: block; }
+.settings-title {
+  font-family: var(--font-head); font-size: 11px; font-weight: 700;
+  color: var(--muted); letter-spacing: .1em; text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.day-toggles { display: flex; flex-direction: column; gap: 6px; }
+.day-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  color: var(--text); cursor: pointer;
+  padding: 4px 6px; border-radius: 4px;
+  transition: background .12s;
+}
+.day-toggle:hover { background: rgba(255,255,255,.04); }
+.day-toggle input { display: none; }
+.toggle-track {
+  width: 30px; height: 16px; border-radius: 8px;
+  background: var(--border); position: relative;
+  transition: background .2s; flex-shrink: 0;
+}
+.day-toggle input:checked + .toggle-track { background: #2d4a7a; }
+.toggle-thumb {
+  position: absolute; top: 2px; left: 2px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--muted); transition: left .2s, background .2s;
+}
+.day-toggle input:checked + .toggle-track .toggle-thumb {
+  left: 16px; background: #38bdf8;
+}
+.settings-hint {
+  margin-top: 12px; padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 9px; color: var(--muted); line-height: 1.6;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">H26 <span>·</span> Lernkalender</div>
+  <div class="hdr-info">
+    Lerntage: <span id="hdr-lerntage">—</span> &nbsp;·&nbsp;
+    Enddatum: <span id="hdr-end">—</span> &nbsp;·&nbsp;
+    Klick = frei/Lerntag &nbsp;·&nbsp; Ziehen = strecken
+  </div>
+</header>
+
+<button class="settings-btn" id="settings-btn" title="Einstellungen">⚙</button>
+
+<div id="settings-panel">
+  <div class="settings-title">Einstellungen</div>
+  <div class="day-toggles">
+    <label class="day-toggle">
+      <span>Montag</span>
+      <input type="checkbox" id="free-1" onchange="updateDefaultFree()">
+      <div class="toggle-track"><div class="toggle-thumb"></div></div>
+    </label>
+    <label class="day-toggle">
+      <span>Dienstag</span>
+      <input type="checkbox" id="free-2" onchange="updateDefaultFree()">
+      <div class="toggle-track"><div class="toggle-thumb"></div></div>
+    </label>
+    <label class="day-toggle">
+      <span>Mittwoch</span>
+      <input type="checkbox" id="free-3" onchange="updateDefaultFree()">
+      <div class="toggle-track"><div class="toggle-thumb"></div></div>
+    </label>
+    <label class="day-toggle">
+      <span>Donnerstag</span>
+      <input type="checkbox" id="free-4" onchange="updateDefaultFree()">
+      <div class="toggle-track"><div class="toggle-thumb"></div></div>
+    </label>
+    <label class="day-toggle">
+      <span>Freitag</span>
+      <input type="checkbox" id="free-5" onchange="updateDefaultFree()">
+      <div class="toggle-track"><div class="toggle-thumb"></div></div>
+    </label>
+    <label class="day-toggle">
+      <span>Samstag</span>
+      <input type="checkbox" id="free-6" onchange="updateDefaultFree()">
+      <div class="toggle-track"><div class="toggle-thumb"></div></div>
+    </label>
+    <label class="day-toggle">
+      <span>Sonntag</span>
+      <input type="checkbox" id="free-0" onchange="updateDefaultFree()">
+      <div class="toggle-track"><div class="toggle-thumb"></div></div>
+    </label>
+  </div>
+  <div class="settings-hint">
+    Aktivierte Tage sind standardmäßig frei.<br>
+    Einzelne Tage können weiterhin per Klick überschrieben werden.
+  </div>
+</div>
+
+<div id="cal-center"><div id="dow-header">
+  <div class="dow-label">Mo</div>
+  <div class="dow-label">Di</div>
+  <div class="dow-label">Mi</div>
+  <div class="dow-label">Do</div>
+  <div class="dow-label">Fr</div>
+  <div class="dow-label weekend">Sa</div>
+  <div class="dow-label weekend">So</div>
+</div>
+
+<div id="cal-wrap"></div></div>
+
+<script>
+const LERNPLAN_DAYS = [{"tag": 1, "label": "Grundwissen", "color": "#F59E0B", "modules": 48, "vertieft": 353, "questions": 0}, {"tag": 2, "label": "Grundwissen", "color": "#F59E0B", "modules": 23, "vertieft": 322, "questions": 26}, {"tag": 3, "label": "Herz", "color": "#EF4444", "modules": 24, "vertieft": 232, "questions": 27}, {"tag": 4, "label": "Herz", "color": "#EF4444", "modules": 24, "vertieft": 227, "questions": 45}, {"tag": 5, "label": "Herz", "color": "#EF4444", "modules": 17, "vertieft": 204, "questions": 97}, {"tag": 6, "label": "Herz", "color": "#EF4444", "modules": 17, "vertieft": 140, "questions": 99}, {"tag": 7, "label": "Gefäße", "color": "#F97316", "modules": 22, "vertieft": 192, "questions": 63}, {"tag": 8, "label": "Gefäße", "color": "#F97316", "modules": 16, "vertieft": 87, "questions": 101}, {"tag": 9, "label": "Atmung", "color": "#3B82F6", "modules": 27, "vertieft": 255, "questions": 48}, {"tag": 10, "label": "Atmung", "color": "#3B82F6", "modules": 13, "vertieft": 171, "questions": 100}, {"tag": 11, "label": "Atmung", "color": "#3B82F6", "modules": 14, "vertieft": 205, "questions": 143}, {"tag": 12, "label": "Blut", "color": "#DC2626", "modules": 27, "vertieft": 202, "questions": 127}, {"tag": 13, "label": "Blut", "color": "#DC2626", "modules": 21, "vertieft": 240, "questions": 62}, {"tag": 14, "label": "Blut", "color": "#DC2626", "modules": 26, "vertieft": 223, "questions": 89}, {"tag": 15, "label": "Verdauung", "color": "#A16207", "modules": 27, "vertieft": 181, "questions": 88}, {"tag": 16, "label": "Verdauung", "color": "#A16207", "modules": 18, "vertieft": 185, "questions": 34}, {"tag": 17, "label": "Verdauung", "color": "#A16207", "modules": 27, "vertieft": 287, "questions": 75}, {"tag": 18, "label": "Verdauung", "color": "#A16207", "modules": 20, "vertieft": 159, "questions": 127}, {"tag": 19, "label": "Verdauung", "color": "#A16207", "modules": 27, "vertieft": 171, "questions": 81}, {"tag": 20, "label": "Verdauung", "color": "#A16207", "modules": 33, "vertieft": 224, "questions": 74}, {"tag": 21, "label": "Hormone", "color": "#8B5CF6", "modules": 21, "vertieft": 214, "questions": 74}, {"tag": 22, "label": "Hormone", "color": "#8B5CF6", "modules": 16, "vertieft": 112, "questions": 132}, {"tag": 23, "label": "Hormone", "color": "#8B5CF6", "modules": 18, "vertieft": 271, "questions": 68}, {"tag": 24, "label": "Hormone", "color": "#8B5CF6", "modules": 12, "vertieft": 94, "questions": 91}, {"tag": 25, "label": "Niere", "color": "#06B6D4", "modules": 35, "vertieft": 210, "questions": 67}, {"tag": 26, "label": "Niere", "color": "#06B6D4", "modules": 16, "vertieft": 159, "questions": 29}, {"tag": 27, "label": "Immun", "color": "#D97706", "modules": 27, "vertieft": 332, "questions": 58}, {"tag": 28, "label": "Immun", "color": "#D97706", "modules": 13, "vertieft": 138, "questions": 110}, {"tag": 29, "label": "Infekt", "color": "#16A34A", "modules": 23, "vertieft": 208, "questions": 105}, {"tag": 30, "label": "Infekt", "color": "#16A34A", "modules": 29, "vertieft": 318, "questions": 78}, {"tag": 31, "label": "Infekt", "color": "#16A34A", "modules": 29, "vertieft": 248, "questions": 54}, {"tag": 32, "label": "Infekt", "color": "#16A34A", "modules": 28, "vertieft": 226, "questions": 144}, {"tag": 33, "label": "Infekt", "color": "#16A34A", "modules": 27, "vertieft": 248, "questions": 9}, {"tag": 34, "label": "Infekt", "color": "#16A34A", "modules": 32, "vertieft": 252, "questions": 110}, {"tag": 35, "label": "Check", "color": "#6B7280", "modules": 0, "vertieft": 0, "questions": 105}, {"tag": 36, "label": "Onko", "color": "#7C3AED", "modules": 33, "vertieft": 278, "questions": 14}, {"tag": 37, "label": "Onko", "color": "#7C3AED", "modules": 39, "vertieft": 271, "questions": 42}, {"tag": 38, "label": "Ortho", "color": "#B45309", "modules": 31, "vertieft": 235, "questions": 58}, {"tag": 39, "label": "Ortho", "color": "#B45309", "modules": 19, "vertieft": 122, "questions": 57}, {"tag": 40, "label": "Ortho", "color": "#B45309", "modules": 32, "vertieft": 195, "questions": 49}, {"tag": 41, "label": "Ortho", "color": "#B45309", "modules": 31, "vertieft": 255, "questions": 80}, {"tag": 42, "label": "Ortho", "color": "#B45309", "modules": 16, "vertieft": 114, "questions": 107}, {"tag": 43, "label": "Ortho", "color": "#B45309", "modules": 20, "vertieft": 109, "questions": 29}, {"tag": 44, "label": "AINS", "color": "#ca8a04", "modules": 25, "vertieft": 327, "questions": 27}, {"tag": 45, "label": "AINS", "color": "#ca8a04", "modules": 35, "vertieft": 423, "questions": 88}, {"tag": 46, "label": "AINS", "color": "#ca8a04", "modules": 15, "vertieft": 262, "questions": 91}, {"tag": 47, "label": "AINS", "color": "#ca8a04", "modules": 24, "vertieft": 237, "questions": 57}, {"tag": 48, "label": "Gyn", "color": "#EC4899", "modules": 20, "vertieft": 145, "questions": 39}, {"tag": 49, "label": "Gyn", "color": "#EC4899", "modules": 18, "vertieft": 135, "questions": 48}, {"tag": 50, "label": "Gyn", "color": "#EC4899", "modules": 15, "vertieft": 115, "questions": 100}, {"tag": 51, "label": "Gyn", "color": "#EC4899", "modules": 24, "vertieft": 296, "questions": 79}, {"tag": 52, "label": "Gyn", "color": "#EC4899", "modules": 22, "vertieft": 243, "questions": 100}, {"tag": 53, "label": "Päd", "color": "#60A5FA", "modules": 27, "vertieft": 204, "questions": 35}, {"tag": 54, "label": "Päd", "color": "#60A5FA", "modules": 27, "vertieft": 240, "questions": 53}, {"tag": 55, "label": "Päd", "color": "#60A5FA", "modules": 29, "vertieft": 231, "questions": 55}, {"tag": 56, "label": "Päd", "color": "#60A5FA", "modules": 33, "vertieft": 271, "questions": 107}, {"tag": 57, "label": "Päd", "color": "#60A5FA", "modules": 16, "vertieft": 170, "questions": 63}, {"tag": 58, "label": "Päd", "color": "#60A5FA", "modules": 20, "vertieft": 210, "questions": 76}, {"tag": 59, "label": "Päd", "color": "#60A5FA", "modules": 25, "vertieft": 186, "questions": 93}, {"tag": 60, "label": "Päd", "color": "#60A5FA", "modules": 20, "vertieft": 121, "questions": 29}, {"tag": 61, "label": "Päd", "color": "#60A5FA", "modules": 26, "vertieft": 163, "questions": 30}, {"tag": 62, "label": "Derma", "color": "#ca9a04", "modules": 44, "vertieft": 186, "questions": 36}, {"tag": 63, "label": "Derma", "color": "#ca9a04", "modules": 29, "vertieft": 164, "questions": 60}, {"tag": 64, "label": "Derma", "color": "#ca9a04", "modules": 36, "vertieft": 194, "questions": 87}, {"tag": 65, "label": "Uro", "color": "#34D399", "modules": 27, "vertieft": 228, "questions": 55}, {"tag": 66, "label": "Uro", "color": "#34D399", "modules": 24, "vertieft": 191, "questions": 75}, {"tag": 67, "label": "Uro", "color": "#34D399", "modules": 16, "vertieft": 90, "questions": 101}, {"tag": 68, "label": "Check", "color": "#6B7280", "modules": 0, "vertieft": 0, "questions": 105}, {"tag": 69, "label": "Check", "color": "#6B7280", "modules": 0, "vertieft": 0, "questions": 105}, {"tag": 70, "label": "Neuro", "color": "#F472B6", "modules": 28, "vertieft": 234, "questions": 32}, {"tag": 71, "label": "Neuro", "color": "#F472B6", "modules": 28, "vertieft": 270, "questions": 65}, {"tag": 72, "label": "Neuro", "color": "#F472B6", "modules": 20, "vertieft": 216, "questions": 188}, {"tag": 73, "label": "Neuro", "color": "#F472B6", "modules": 17, "vertieft": 176, "questions": 116}, {"tag": 74, "label": "Neuro", "color": "#F472B6", "modules": 19, "vertieft": 157, "questions": 108}, {"tag": 75, "label": "Neuro", "color": "#F472B6", "modules": 21, "vertieft": 189, "questions": 90}, {"tag": 76, "label": "Neuro", "color": "#F472B6", "modules": 20, "vertieft": 182, "questions": 175}, {"tag": 77, "label": "Augen", "color": "#A78BFA", "modules": 25, "vertieft": 151, "questions": 87}, {"tag": 78, "label": "Augen", "color": "#A78BFA", "modules": 25, "vertieft": 177, "questions": 18}, {"tag": 79, "label": "Augen", "color": "#A78BFA", "modules": 32, "vertieft": 211, "questions": 44}, {"tag": 80, "label": "HNO", "color": "#2DD4BF", "modules": 28, "vertieft": 175, "questions": 79}, {"tag": 81, "label": "HNO", "color": "#2DD4BF", "modules": 25, "vertieft": 159, "questions": 52}, {"tag": 82, "label": "HNO", "color": "#2DD4BF", "modules": 29, "vertieft": 136, "questions": 31}, {"tag": 83, "label": "Psych", "color": "#C084FC", "modules": 34, "vertieft": 278, "questions": 69}, {"tag": 84, "label": "Psych", "color": "#C084FC", "modules": 30, "vertieft": 242, "questions": 83}, {"tag": 85, "label": "Psych", "color": "#C084FC", "modules": 29, "vertieft": 197, "questions": 105}, {"tag": 86, "label": "Psych", "color": "#C084FC", "modules": 40, "vertieft": 257, "questions": 119}, {"tag": 87, "label": "Rechtsmed", "color": "#9CA3AF", "modules": 32, "vertieft": 276, "questions": 74}, {"tag": 88, "label": "Allgmed", "color": "#4ADE80", "modules": 49, "vertieft": 481, "questions": 126}, {"tag": 89, "label": "Arbeit", "color": "#FB923C", "modules": 36, "vertieft": 372, "questions": 54}, {"tag": 90, "label": "Sozmed", "color": "#38BDF8", "modules": 29, "vertieft": 284, "questions": 174}, {"tag": 91, "label": "GTE", "color": "#94a3b8", "modules": 14, "vertieft": 166, "questions": 100}, {"tag": 92, "label": "GP", "color": "#38bdf8", "modules": 0, "vertieft": 0, "questions": 105}, {"tag": 93, "label": "GP", "color": "#38bdf8", "modules": 0, "vertieft": 0, "questions": 105}, {"tag": 94, "label": "GP", "color": "#38bdf8", "modules": 0, "vertieft": 0, "questions": 105}, {"tag": 95, "label": "GP", "color": "#38bdf8", "modules": 0, "vertieft": 0, "questions": 105}, {"tag": 96, "label": "GP", "color": "#38bdf8", "modules": 0, "vertieft": 0, "questions": 105}, {"tag": 97, "label": "GP", "color": "#38bdf8", "modules": 0, "vertieft": 0, "questions": 105}, {"tag": 98, "label": "GP", "color": "#38bdf8", "modules": 0, "vertieft": 0, "questions": 105}, {"tag": 99, "label": "GP", "color": "#38bdf8", "modules": 0, "vertieft": 0, "questions": 105}, {"tag": 100, "label": "GP", "color": "#38bdf8", "modules": 0, "vertieft": 0, "questions": 105}];
+
+// ── Constants ──
+const START_DATE = new Date(2026, 3, 27); // 27 April 2026
+const END_DATE   = new Date(2026, 9, 5);  // 5 October 2026
+const MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober'];
+const TODAY = new Date(); TODAY.setHours(0,0,0,0);
+
+// ── Helpers ──
+function dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function addDays(d, n) {
+  const r = new Date(d); r.setDate(r.getDate() + n); return r;
+}
+function isWeekend(d) { return d.getDay() === 0 || d.getDay() === 6; }
+function daysBetween(a, b) { return Math.round((b-a)/(1000*60*60*24)); }
+
+// ── State ──
+// freeSet: Set of dateKeys marked as free by user
+// spanMap: {lerntagNr: extraDays} how many extra calendar days a lerntag spans
+// Both persisted in localStorage
+
+let freeSet  = new Set(JSON.parse(localStorage.getItem('h26_cal_free') || '[]'));
+let spanMap  = JSON.parse(localStorage.getItem('h26_cal_span') || '{}');
+
+// Default: weekends are free
+function isDefaultFree(d) { return isWeekend(d); }
+function isFree(d) {
+  const k = dateKey(d);
+  if (freeSet.has(k)) return true; // explicitly toggled
+  // If it's a weekend not toggled back, it's free
+  // We track explicit toggles: if weekend is in toggledToLern set, it's not free
+  return false; // handled by defaultFreeSet logic below
+}
+
+// We use two sets: explicitly freed (non-weekend made free) and explicitly opened (weekend made lernday)
+let explicitFree = new Set(JSON.parse(localStorage.getItem('h26_cal_efree') || '[]'));
+let explicitLern = new Set(JSON.parse(localStorage.getItem('h26_cal_elern') || '[]'));
+// defaultFreeDays: Set of weekday numbers (0=Sun,1=Mon,...,6=Sat) that are free by default
+let defaultFreeDays = new Set(JSON.parse(localStorage.getItem('h26_cal_freedays') || '[0,6]'));
+
+function isDefaultFreeDay(d) { return defaultFreeDays.has(d.getDay()); }
+
+function isDayFree(d) {
+  const k = dateKey(d);
+  if (explicitFree.has(k)) return true;
+  if (explicitLern.has(k)) return false;
+  return isDefaultFreeDay(d);
+}
+
+function saveState() {
+  localStorage.setItem('h26_cal_efree',    JSON.stringify([...explicitFree]));
+  localStorage.setItem('h26_cal_elern',    JSON.stringify([...explicitLern]));
+  localStorage.setItem('h26_cal_span',     JSON.stringify(spanMap));
+  localStorage.setItem('h26_cal_freedays', JSON.stringify([...defaultFreeDays]));
+}
+
+function updateDefaultFree() {
+  defaultFreeDays = new Set();
+  [0,1,2,3,4,5,6].forEach(n => {
+    if (document.getElementById('free-' + n)?.checked) defaultFreeDays.add(n);
+  });
+  saveState();
+  buildCalendar();
+}
+
+function initSettingsPanel() {
+  defaultFreeDays.forEach(n => {
+    const el = document.getElementById('free-' + n);
+    if (el) el.checked = true;
+  });
+}
+
+// ── Assign lerndays to calendar dates ──
+// Returns array of {date, lernTag (1-based index into LERNPLAN_DAYS), span}
+function buildAssignment() {
+  let result = {}; // dateKey -> {lernIdx, span, continued}
+  let lernIdx = 0;  // index into LERNPLAN_DAYS
+  let d = new Date(START_DATE);
+  let spanRemaining = 0; // how many more days current lerntag needs
+  let currentLernIdx = -1;
+
+  while (lernIdx < LERNPLAN_DAYS.length) {
+    if (daysBetween(new Date(2026,3,27), d) > 300) break; // safety
+
+    const k = dateKey(d);
+
+    if (isDayFree(d)) {
+      d = addDays(d, 1);
+      continue;
+    }
+
+    if (spanRemaining > 0) {
+      // This day is a continuation of previous lerntag
+      result[k] = { lernIdx: currentLernIdx, span: 0, continued: true };
+      spanRemaining--;
+      d = addDays(d, 1);
+      continue;
+    }
+
+    // Assign next lerntag
+    currentLernIdx = lernIdx;
+    const lerntag = LERNPLAN_DAYS[lernIdx];
+    const extraSpan = (spanMap[lerntag.tag] || 0) +
+      (lerntag.vertieft > 300 ? 1 : 0); // auto-span if >5h
+
+    result[k] = { lernIdx, span: extraSpan, continued: false };
+
+    if (extraSpan > 0) {
+      spanRemaining = extraSpan;
+    }
+
+    lernIdx++;
+    d = addDays(d, 1);
+  }
+
+  return result;
+}
+
+// ── Build calendar grid ──
+function buildCalendar() {
+  const assignment = buildAssignment();
+  const wrap = document.getElementById('cal-wrap');
+  wrap.innerHTML = '';
+
+  // Find first Monday on or before April 1
+  const calStart = new Date(2026, 3, 1); // April 1
+  while (calStart.getDay() !== 1) calStart.setDate(calStart.getDate() - 1);
+
+  // Find last Sunday on or after Oct 5
+  const calEnd = new Date(2026, 9, 5);
+  while (calEnd.getDay() !== 0) calEnd.setDate(calEnd.getDate() + 1);
+
+  let cur = new Date(calStart);
+  let currentMonth = -1;
+  let weekDiv = null;
+  let monthDiv = null;
+
+  while (cur <= calEnd) {
+    // Month label
+    if (cur.getMonth() !== currentMonth && cur.getDay() === 1) {
+      currentMonth = cur.getMonth();
+      monthDiv = document.createElement('div');
+      monthDiv.className = 'month-block';
+      const lbl = document.createElement('div');
+      lbl.className = 'month-label';
+      lbl.textContent = MONTHS[currentMonth] + ' 2026';
+      monthDiv.appendChild(lbl);
+      wrap.appendChild(monthDiv);
+    }
+
+    // Week row
+    if (cur.getDay() === 1) {
+      weekDiv = document.createElement('div');
+      weekDiv.className = 'week-row';
+      (monthDiv || wrap).appendChild(weekDiv);
+    }
+
+    const cell = buildCell(cur, assignment);
+    weekDiv.appendChild(cell);
+    cur = addDays(cur, 1);
+  }
+
+  updateHeader(assignment);
+}
+
+function buildCell(d, assignment) {
+  const k = dateKey(d);
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  cell.dataset.key = k;
+
+  const isOutRange = d < new Date(2026, 3, 1) || d > new Date(2026, 9, 5);
+  const isTod = d.getTime() === TODAY.getTime();
+  if (isTod) cell.classList.add('today');
+
+  // Date number
+  const dateEl = document.createElement('div');
+  dateEl.className = 'cell-date';
+  dateEl.textContent = d.getDate();
+  cell.appendChild(dateEl);
+
+  if (isOutRange) {
+    cell.classList.add('outside');
+    return cell;
+  }
+
+  const free = isDayFree(d);
+  const asgn = assignment[k];
+
+  if (free && !asgn) {
+    cell.classList.add(isDefaultFreeDay(d) && !explicitFree.has(k) ? 'weekend-free' : 'free');
+    const lbl = document.createElement('div');
+    lbl.className = 'free-label';
+    lbl.textContent = isDefaultFreeDay(d) && !explicitFree.has(k) ? '' : 'frei';
+    cell.appendChild(lbl);
+  } else if (asgn && !asgn.continued) {
+    cell.classList.add('lernday');
+    const lerntag = LERNPLAN_DAYS[asgn.lernIdx];
+
+    // Color strip
+    const strip = document.createElement('div');
+    strip.className = 'cell-strip';
+    strip.style.background = lerntag.color;
+    cell.appendChild(strip);
+
+    // Content
+    const content = document.createElement('div');
+    content.className = 'cell-content';
+
+    const tagEl = document.createElement('div');
+    tagEl.className = 'cell-tag';
+    tagEl.textContent = `Tag ${lerntag.tag} · ${lerntag.label}`;
+
+    const h = Math.floor(lerntag.vertieft / 60);
+    const m = lerntag.vertieft % 60;
+    const timeStr = h > 0 ? `${h}h${m > 0 ? m+'m' : ''}` : `${m}m`;
+
+    const meta = document.createElement('div');
+    meta.className = 'cell-meta';
+    meta.innerHTML = `<span class="modules">${lerntag.modules} Mod.</span><span class="time">⏱ ${timeStr}</span><span class="questions">✗ ${lerntag.questions}</span>`;
+
+    content.appendChild(tagEl);
+    content.appendChild(meta);
+    cell.appendChild(content);
+
+    if (asgn.span > 0) {
+      const arrow = document.createElement('div');
+      arrow.className = 'span-arrow';
+      arrow.textContent = '↓';
+      cell.appendChild(arrow);
+    }
+
+    // Drag handle for spanning
+    const handle = document.createElement('div');
+    handle.className = 'drag-handle';
+    handle.dataset.lernTag = lerntag.tag;
+    handle.addEventListener('mousedown', startDrag);
+    cell.appendChild(handle);
+
+  } else if (asgn && asgn.continued) {
+    cell.classList.add('lernday');
+    const lerntag = LERNPLAN_DAYS[asgn.lernIdx];
+    const strip = document.createElement('div');
+    strip.className = 'cell-strip';
+    strip.style.background = lerntag.color;
+    strip.style.opacity = '.4';
+    cell.appendChild(strip);
+    const cont = document.createElement('div');
+    cont.className = 'free-label';
+    cont.style.color = '#1e3050';
+    cont.textContent = `↑ Tag ${lerntag.tag}`;
+    cell.appendChild(cont);
+  } else if (free) {
+    cell.classList.add('free');
+    const lbl = document.createElement('div');
+    lbl.className = 'free-label';
+    lbl.textContent = 'frei';
+    cell.appendChild(lbl);
+  }
+
+  // Click to toggle free/lernday
+  cell.addEventListener('click', e => {
+    if (e.target.closest('.drag-handle')) return;
+    toggleDay(d);
+  });
+
+  return cell;
+}
+
+function toggleDay(d) {
+  const k = dateKey(d);
+  if (isDefaultFreeDay(d)) {
+    if (explicitLern.has(k)) { explicitLern.delete(k); }
+    else { explicitLern.add(k); }
+  } else {
+    if (explicitFree.has(k)) { explicitFree.delete(k); }
+    else { explicitFree.add(k); }
+  }
+  saveState();
+  buildCalendar();
+}
+
+// ── Drag to span ──
+let dragState = null;
+
+function startDrag(e) {
+  e.stopPropagation();
+  e.preventDefault();
+  const lernTag = parseInt(e.currentTarget.dataset.lernTag);
+  const startX = e.clientX;
+  const origSpan = spanMap[lernTag] || 0;
+  dragState = { lernTag, startX, origSpan };
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', endDrag);
+}
+
+function onDrag(e) {
+  if (!dragState) return;
+  const CELL_W = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell-w'));
+  const dx = e.clientX - dragState.startX;
+  // Each cell+gap ≈ CELL_W + 3px
+  const extraDays = Math.max(0, Math.round(dx / (CELL_W + 3)));
+  spanMap[dragState.lernTag] = Math.max(0, extraDays);
+  saveState();
+  buildCalendar();
+}
+
+function endDrag(e) {
+  dragState = null;
+  document.removeEventListener('mousemove', onDrag);
+  document.removeEventListener('mouseup', endDrag);
+}
+
+// ── Header stats ──
+function updateHeader(assignment) {
+  const keys = Object.keys(assignment).filter(k => !assignment[k].continued);
+  document.getElementById('hdr-lerntage').textContent = keys.length;
+
+  // Find last assigned date
+  const lastKey = Object.keys(assignment).sort().pop();
+  if (lastKey) {
+    const [y,m,dd] = lastKey.split('-').map(Number);
+    document.getElementById('hdr-end').textContent =
+      `${dd}. ${MONTHS[m-1]} ${y}`;
+  }
+}
+
+// ── Init ──
+initSettingsPanel();
+buildCalendar();
+
+// Settings panel toggle
+document.getElementById('settings-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('settings-panel').classList.toggle('open');
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#settings-panel') && !e.target.closest('#settings-btn')) {
+    document.getElementById('settings-panel').classList.remove('open');
+  }
+});
+</script>
+</body>
+</html>
