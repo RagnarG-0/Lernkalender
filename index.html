@@ -401,42 +401,52 @@ function buildCalendar() {
   const wrap = document.getElementById('cal-wrap');
   wrap.innerHTML = '';
 
-  // Find first Monday on or before April 1
-  const calStart = new Date(2026, 3, 1); // April 1
-  while (calStart.getDay() !== 1) calStart.setDate(calStart.getDate() - 1);
+  // Render month by month April–October
+  for (let month = 3; month <= 9; month++) {
+    const monthDiv = document.createElement('div');
+    monthDiv.className = 'month-block';
 
-  // Find last Sunday on or after Oct 5
-  const calEnd = new Date(2026, 9, 5);
-  while (calEnd.getDay() !== 0) calEnd.setDate(calEnd.getDate() + 1);
+    const lbl = document.createElement('div');
+    lbl.className = 'month-label';
+    lbl.textContent = MONTHS[month] + ' 2026';
+    monthDiv.appendChild(lbl);
 
-  let cur = new Date(calStart);
-  let currentMonth = -1;
-  let weekDiv = null;
-  let monthDiv = null;
+    // Find first Monday on or before the 1st of this month
+    const monthStart = new Date(2026, month, 1);
+    const rowStart = new Date(monthStart);
+    while (rowStart.getDay() !== 1) rowStart.setDate(rowStart.getDate() - 1);
 
-  while (cur <= calEnd) {
-    // Month label
-    if (cur.getMonth() !== currentMonth && cur.getDay() === 1) {
-      currentMonth = cur.getMonth();
-      monthDiv = document.createElement('div');
-      monthDiv.className = 'month-block';
-      const lbl = document.createElement('div');
-      lbl.className = 'month-label';
-      lbl.textContent = MONTHS[currentMonth] + ' 2026';
-      monthDiv.appendChild(lbl);
-      wrap.appendChild(monthDiv);
+    // Find last Sunday on or after last day of this month
+    const monthEnd = new Date(2026, month + 1, 0); // last day of month
+    const rowEnd = new Date(monthEnd);
+    while (rowEnd.getDay() !== 0) rowEnd.setDate(rowEnd.getDate() + 1);
+
+    let cur = new Date(rowStart);
+    let weekDiv = null;
+
+    while (cur <= rowEnd) {
+      if (cur.getDay() === 1) {
+        weekDiv = document.createElement('div');
+        weekDiv.className = 'week-row';
+        monthDiv.appendChild(weekDiv);
+      }
+
+      // Cells outside current month but in the week row → empty placeholder
+      const inMonth = cur.getMonth() === month;
+      const inRange = cur >= new Date(2026, 3, 27) && cur <= new Date(2026, 9, 5);
+
+      let cell;
+      if (!inMonth) {
+        cell = document.createElement('div');
+        cell.className = 'cell empty';
+      } else {
+        cell = buildCell(cur, assignment);
+      }
+      weekDiv.appendChild(cell);
+      cur = addDays(cur, 1);
     }
 
-    // Week row
-    if (cur.getDay() === 1) {
-      weekDiv = document.createElement('div');
-      weekDiv.className = 'week-row';
-      (monthDiv || wrap).appendChild(weekDiv);
-    }
-
-    const cell = buildCell(cur, assignment);
-    weekDiv.appendChild(cell);
-    cur = addDays(cur, 1);
+    wrap.appendChild(monthDiv);
   }
 
   updateHeader(assignment);
